@@ -297,11 +297,13 @@
 
         // Global callback for when gapi.js is loaded
         window.gapiLoaded = function() {
+            console.log("gapi.js loaded and gapiLoaded function called.");
             loadGapiClient();
         }
 
         // Global callback for when gis.js (Google Identity Services) is loaded
         window.gisLoaded = function() {
+            console.log("gis.js loaded and gisLoaded function called.");
             tokenClient = google.accounts.oauth2.initTokenClient({
                 client_id: CLIENT_ID,
                 scope: SCOPES,
