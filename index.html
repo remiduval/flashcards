@@ -5,6 +5,30 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Flashcard Learner</title>
     <style>
+        /* ... (Your existing CSS here) ... */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            background-color: #f0f2f5;
+            color: #333;
+        }
+
+        .container {
+            background-color: #fff;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba<ctrl61><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flashcard Learner</title>
+    <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             display: flex;
@@ -219,20 +243,20 @@
     </div>
 
     <!-- Google API Loader -->
-    <script async defer src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
-    <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
+    <script async defer src="https://apis.google.com/js/api.js"></script>
+    <script async defer src="https://accounts.google.com/gsi/client"></script>
 
     <script>
         // --- Configuration ---
-        const CLIENT_ID = '943947058521-hecubmu4dl8coankfti29konro2b95hu.apps.googleusercontent.com'; // Replace with your Google Cloud project's Client ID
+        const CLIENT_ID = 'YOUR_CLIENT_ID'; // Replace with your Google Cloud project's Client ID
         const API_KEY = 'YOUR_API_KEY';     // Optional: Replace with your API Key if needed, but OAuth client ID usually suffices for user-specific access.
         const DISCOVERY_DOCS = ["https://sheets.googleapis.com/$discovery/rest?version=v4"];
         const SCOPES = 'https://www.googleapis.com/auth/spreadsheets'; // Read and write access to spreadsheets
 
         // List of your Google Sheet IDs and their display names
         const SHEETS = [
-            { id: '1dCoNwBqJbu5f7jfBxfo7dpPqCMSux26pbY0jMZ0tfHk', name: '🇬🇷 Greek - Remi' },
-            { id: '1ZcZtP2aA-u0_EXAMPLE_SHEET_ID_2', name: '🇫🇷 French - Nikos' },
+            { id: '1YVjFhR8g-v2_EXAMPLE_SHEET_ID_1', name: 'Example Vocab 1' }, // REPLACE with your actual Sheet IDs and names
+            { id: '1ZcZtP2aA-u0_EXAMPLE_SHEET_ID_2', name: 'Example Vocab 2' },
             // Add more sheet objects here: { id: 'YOUR_SHEET_ID', name: 'Your Sheet Name' },
         ];
         // --- End Configuration ---
@@ -256,23 +280,29 @@
         const statusDiv = document.getElementById('status');
         const loader = document.getElementById('loader');
 
-        /**
-         * Callback after Google API client is loaded.
-         */
-        function gapiLoaded() {
-            gapi.client.init({
-                apiKey: API_KEY, // API Key is optional if you only use OAuth, but good to have
-                discoveryDocs: DISCOVERY_DOCS,
-            }).then(() => {
-                gapiInited = true;
-                maybeEnableAuthButton();
+        // Function to load the Google API client libraries
+        function loadGapiClient() {
+            gapi.load('client', () => {
+                gapi.client.init({
+                    apiKey: API_KEY,
+                    discoveryDocs: DISCOVERY_DOCS,
+                }).then(() => {
+                    gapiInited = true;
+                    maybeEnableAuthButton();
+                }).catch(error => {
+                    console.error("Error initializing gapi client:", error);
+                    statusDiv.textContent = 'Error initializing Google API: ' + error.message;
+                });
             });
         }
 
-        /**
-         * Callback after Google Identity Services client is loaded.
-         */
-        function gisLoaded() {
+        // Global callback for when gapi.js is loaded
+        window.gapiLoaded = function() {
+            loadGapiClient();
+        }
+
+        // Global callback for when gis.js (Google Identity Services) is loaded
+        window.gisLoaded = function() {
             tokenClient = google.accounts.oauth2.initTokenClient({
                 client_id: CLIENT_ID,
                 scope: SCOPES,
@@ -282,10 +312,14 @@
                         return;
                     }
                     gapi.client.setToken(tokenResponse);
-                    statusDiv.textContent = 'Authorized!';
+                    statusDiv.textContent = 'Authorized! Loading sheets...';
                     authButton.classList.add('hidden');
                     populateSheetSelect();
                     sheetSelect.classList.remove('hidden');
+                    // Optionally, if a sheet was already selected, load it
+                    if (currentSheetId) {
+                        loadSelectedSheet();
+                    }
                 },
             });
             gisInited = true;
@@ -386,7 +420,6 @@
             const weights = allCards.map(card => {
                 // Familiarity is 0-10.
                 // Weight should be higher for lower familiarity.
-                // Example: familiarity 0 -> weight 10, familiarity 10 -> weight 0.1
                 // We'll use (10 - familiarity) for a simple linear increase.
                 // Add a small constant to ensure even familiar cards have a chance.
                 return (10 - card.familiarity) + 1; // +1 to ensure min weight is 1
@@ -406,7 +439,7 @@
                     break;
                 }
             }
-            
+
             currentCardData = allCards[currentCardIndex];
             cardFront.textContent = currentCardData.front;
             cardBack.textContent = currentCardData.back;
