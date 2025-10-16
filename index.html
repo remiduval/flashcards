@@ -241,8 +241,7 @@
             <button onclick="updateFamiliarity('Easy')">Easy</button>
         </div>
     </div>
-
-    <!-- Google API Loader -->
+<!-- Google API Loader -->
     <script async defer src="https://apis.google.com/js/api.js"></script>
     <script async defer src="https://accounts.google.com/gsi/client"></script>
 
@@ -255,7 +254,7 @@
 
         // List of your Google Sheet IDs and their display names
         const SHEETS = [
-            { id: '1dCoNwBqJbu5f7jfBxfo7dpPqCMSux26pbY0jMZ0tfHk', name: 'Example Vocab 1' }, // REPLACE with your actual Sheet IDs and names
+            { id: '1dCoNwBqJbu5f7jfBxfo7dpPqCMSux26pbY0jMZ0tfHk', name: 'Your Flashcards' }, // Using your provided sheet ID
             // Add more sheet objects here: { id: 'YOUR_SHEET_ID', name: 'Your Sheet Name' },
         ];
         // --- End Configuration ---
@@ -279,31 +278,29 @@
         const statusDiv = document.getElementById('status');
         const loader = document.getElementById('loader');
 
-        // Function to load the Google API client libraries
-        function loadGapiClient() {
-            gapi.load('client', () => {
-                gapi.client.init({
-                    apiKey: API_KEY,
-                    discoveryDocs: DISCOVERY_DOCS,
-                }).then(() => {
-                    gapiInited = true;
-                    maybeEnableAuthButton();
-                }).catch(error => {
-                    console.error("Error initializing gapi client:", error);
-                    statusDiv.textContent = 'Error initializing Google API: ' + error.message;
-                });
+        /**
+         * Initializes gapi client.
+         * This function will be called by `gapi.load`.
+         */
+        function initializeGapiClient() {
+            gapi.client.init({
+                apiKey: API_KEY,
+                discoveryDocs: DISCOVERY_DOCS,
+            }).then(() => {
+                gapiInited = true;
+                console.log("gapi client initialized."); // Debugging log
+                maybeEnableAuthButton();
+            }).catch(error => {
+                console.error("Error initializing gapi client:", error);
+                statusDiv.textContent = 'Error initializing Google API: ' + error.message;
             });
         }
 
-        // Global callback for when gapi.js is loaded
-        window.gapiLoaded = function() {
-            console.log("gapi.js loaded and gapiLoaded function called.");
-            loadGapiClient();
-        }
-
-        // Global callback for when gis.js (Google Identity Services) is loaded
-        window.gisLoaded = function() {
-            console.log("gis.js loaded and gisLoaded function called.");
+        /**
+         * Initializes GIS (Google Identity Services) client.
+         * This function will be called when `gis.js` is confirmed loaded.
+         */
+        function initializeGisClient() {
             tokenClient = google.accounts.oauth2.initTokenClient({
                 client_id: CLIENT_ID,
                 scope: SCOPES,
@@ -317,14 +314,28 @@
                     authButton.classList.add('hidden');
                     populateSheetSelect();
                     sheetSelect.classList.remove('hidden');
-                    // Optionally, if a sheet was already selected, load it
-                    if (currentSheetId) {
+                    if (currentSheetId) { // If a sheet was pre-selected (e.g., from initial load)
+                        loadSelectedSheet();
+                    } else if (SHEETS.length > 0) { // If there are sheets defined, select the first one by default
+                        sheetSelect.value = SHEETS[0].id;
                         loadSelectedSheet();
                     }
                 },
             });
             gisInited = true;
+            console.log("GIS client initialized."); // Debugging log
             maybeEnableAuthButton();
+        }
+
+        // Global functions called by Google's scripts
+        window.gapiLoaded = function() {
+            console.log("gapi.js script loaded."); // Debugging log
+            gapi.load('client', initializeGapiClient);
+        }
+
+        window.gisLoaded = function() {
+            console.log("gis.js script loaded."); // Debugging log
+            initializeGisClient();
         }
 
         /**
@@ -333,7 +344,8 @@
         function maybeEnableAuthButton() {
             if (gapiInited && gisInited) {
                 authButton.onclick = () => tokenClient.requestAccessToken();
-                // Optionally auto-trigger auth if token not present and first visit
+                console.log("Auth button click handler set."); // Debugging log
+                // Optional: Auto-trigger auth if not already authorized
                 // if (!gapi.client.getToken()) {
                 //     tokenClient.requestAccessToken();
                 // }
@@ -371,14 +383,27 @@
             familiarityControls.classList.add('hidden');
 
             try {
+                // Ensure gapi client is loaded before making requests
+                if (!gapiInited) {
+                    console.warn("gapi client not yet initialized, retrying load.");
+                    // Attempt to load again or wait
+                    await new Promise(resolve => gapi.load('client', resolve));
+                    await gapi.client.init({ apiKey: API_KEY, discoveryDocs: DISCOVERY_DOCS });
+                    gapiInited = true;
+                }
+
+                // IMPORTANT: If your data is NOT on the first sheet, specify the tab name here.
+                // For example, if your tab is named "Flashcards", use 'Flashcards!A:C'
+                const range = 'A:C'; // This defaults to the first visible sheet.
+                                     // If your tab is named differently, change it here, e.g., 'Sheet1!A:C'
                 const response = await gapi.client.sheets.spreadsheets.values.get({
                     spreadsheetId: currentSheetId,
-                    range: 'A:C', // Columns Front, Back, Familiarity
+                    range: range,
                 });
                 const values = response.result.values;
 
                 if (!values || values.length < 2) {
-                    statusDiv.textContent = 'No cards found in this sheet or missing headers (Front, Back, Familiarity).';
+                    statusDiv.textContent = 'No cards found in this sheet or missing headers (Front, Back, Familiarity). Ensure data is in the first tab or range is specified correctly.';
                     allCards = [];
                     return;
                 }
@@ -399,6 +424,12 @@
                 statusDiv.textContent = 'Error loading sheet: ' + err.message;
                 console.error('Error loading sheet:', err);
                 loader.classList.add('hidden');
+                // If it's an authorization error, prompt for re-auth
+                if (err.status === 401) {
+                    statusDiv.textContent += '. Please re-authorize Google Sheets.';
+                    authButton.classList.remove('hidden');
+                    sheetSelect.classList.add('hidden');
+                }
             }
         }
 
@@ -421,8 +452,6 @@
             const weights = allCards.map(card => {
                 // Familiarity is 0-10.
                 // Weight should be higher for lower familiarity.
-                // We'll use (10 - familiarity) for a simple linear increase.
-                // Add a small constant to ensure even familiar cards have a chance.
                 return (10 - card.familiarity) + 1; // +1 to ensure min weight is 1
             });
 
@@ -493,6 +522,12 @@
             } catch (err) {
                 statusDiv.textContent = 'Error updating familiarity: ' + err.message;
                 console.error('Error updating familiarity:', err);
+                // If update fails, might need re-auth for write scope
+                if (err.status === 401) {
+                    statusDiv.textContent += '. Please re-authorize Google Sheets.';
+                    authButton.classList.remove('hidden');
+                    sheetSelect.classList.add('hidden');
+                }
             }
 
             // Show next card after updating
