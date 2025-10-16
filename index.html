@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flashcard Learner</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            background-color: #f0f2f5;
+            color: #333;
+        }
+
+        .container {
+            background-color: #fff;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            width: 90%;
+            max-width: 500px;
+            text-align: center;
+            margin: 20px;
+            box-sizing: border-box;
+        }
+
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 25px;
+            font-size: 1.8em;
+        }
+
+        .sheet-selector, .card-area, .familiarity-controls {
+            margin-bottom: 25px;
+        }
+
+        select, button {
+            padding: 12px 20px;
+            border-radius: 8px;
+            border: 1px solid #ccc;
+            font-size: 1em;
+            cursor: pointer;
+            transition: background-color 0.3s ease, border-color 0.3s ease;
+        }
+
+        select {
+            width: calc(100% - 2px);
+            background-color: #f8f8f8;
+            appearance: none; /* Remove default arrow */
+            background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23000%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13.2-5.4H18.2c-4.1%200-7.9%201.5-10.9%204.4-3%203-4.5%206.8-4.5%2010.9s1.5%207.9%204.5%2010.9l128.8%20128.8c3%203%206.8%204.5%2010.9%204.5s7.9-1.5%2010.9-4.5l128.8-128.8c3-3%204.5-6.8%204.5-10.9s-1.5-7.9-4.5-10.9z%22%2F%3E%3C%2Fsvg%3E');
+            background-repeat: no-repeat;
+            background-position: right 10px top 50%;
+            background-size: 16px;
+        }
+
+        button {
+            background-color: #3498db;
+            color: white;
+            border-color: #3498db;
+            margin: 5px;
+        }
+
+        button:hover {
+            background-color: #2980b9;
+            border-color: #2980b9;
+        }
+
+        #authButton {
+            background-color: #e67e22;
+            border-color: #e67e22;
+        }
+        #authButton:hover {
+            background-color: #d35400;
+            border-color: #d35400;
+        }
+
+        .flashcard {
+            background-color: #e8f4f8;
+            border: 2px solid #3498db;
+            border-radius: 10px;
+            padding: 40px 20px;
+            min-height: 150px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2em;
+            font-weight: bold;
+            color: #2c3e50;
+            cursor: pointer;
+            user-select: none;
+            perspective: 1000px;
+            position: relative;
+            transition: transform 0.6s;
+            transform-style: preserve-3d;
+        }
+
+        .flashcard.flipped {
+            transform: rotateY(180deg);
+        }
+
+        .flashcard-inner {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            text-align: center;
+            backface-visibility: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px; /* Adjust padding for inner content */
+            box-sizing: border-box;
+        }
+
+        .flashcard-front, .flashcard-back {
+            position: absolute; /* Ensures content stays within the inner div */
+        }
+
+        .flashcard-front {
+            transform: rotateY(0deg);
+        }
+
+        .flashcard-back {
+            transform: rotateY(180deg);
+        }
+
+
+        .familiarity-controls button {
+            background-color: #27ae60;
+            border-color: #27ae60;
+            margin: 0 5px;
+            width: 120px;
+            font-size: 0.9em;
+        }
+        .familiarity-controls button:first-child { background-color: #e74c3c; border-color: #e74c3c; } /* Hard */
+        .familiarity-controls button:first-child:hover { background-color: #c0392b; border-color: #c0392b; }
+        .familiarity-controls button:nth-child(2) { background-color: #f39c12; border-color: #f39c12; } /* Medium */
+        .familiarity-controls button:nth-child(2):hover { background-color: #e67e22; border-color: #e67e22; }
+        .familiarity-controls button:last-child { background-color: #27ae60; border-color: #27ae60; } /* Easy */
+        .familiarity-controls button:last-child:hover { background-color: #219d53; border-color: #219d53; }
+
+        #status {
+            margin-top: 15px;
+            font-size: 0.9em;
+            color: #777;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 20px;
+                margin: 10px;
+            }
+            h1 {
+                font-size: 1.5em;
+            }
+            .flashcard {
+                font-size: 1.5em;
+                min-height: 120px;
+            }
+            .familiarity-controls button {
+                width: 90px;
+                padding: 10px 15px;
+                font-size: 0.8em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Flashcard Learner</h1>
+
+        <div class="sheet-selector">
+            <select id="sheetSelect" class="hidden">
+                <option value="">Select a Flashcard Deck</option>
+            </select>
+            <button id="authButton">Authorize Google Sheets</button>
+        </div>
+
+        <div id="loader" class="loader hidden"></div>
+        <p id="status"></p>
+
+        <div id="flashcardArea" class="card-area hidden">
+            <div class="flashcard" id="flashcard">
+                <div class="flashcard-inner">
+                    <span class="flashcard-front" id="cardFront"></span>
+                    <span class="flashcard-back" id="cardBack"></span>
+                </div>
+            </div>
+        </div>
+
+        <div id="familiarityControls" class="familiarity-controls hidden">
+            <button onclick="updateFamiliarity('Hard')">Hard</button>
+            <button onclick="updateFamiliarity('Medium')">Medium</button>
+            <button onclick="updateFamiliarity('Easy')">Easy</button>
+        </div>
+    </div>
+
+    <!-- Google API Loader -->
+    <script async defer src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
+    <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
+
+    <script>
+        // --- Configuration ---
+        const CLIENT_ID = 'YOUR_CLIENT_ID'; // Replace with your Google Cloud project's Client ID
+        const API_KEY = 'YOUR_API_KEY';     // Optional: Replace with your API Key if needed, but OAuth client ID usually suffices for user-specific access.
+        const DISCOVERY_DOCS = ["https://sheets.googleapis.com/$discovery/rest?version=v4"];
+        const SCOPES = 'https://www.googleapis.com/auth/spreadsheets'; // Read and write access to spreadsheets
+
+        // List of your Google Sheet IDs and their display names
+        const SHEETS = [
+            { id: '1YVjFhR8g-v2_EXAMPLE_SHEET_ID_1', name: 'Example Vocab 1' },
+            { id: '1ZcZtP2aA-u0_EXAMPLE_SHEET_ID_2', name: 'Example Vocab 2' },
+            // Add more sheet objects here: { id: 'YOUR_SHEET_ID', name: 'Your Sheet Name' },
+        ];
+        // --- End Configuration ---
+
+        let tokenClient;
+        let gapiInited = false;
+        let gisInited = false;
+
+        let currentSheetId = null;
+        let allCards = [];
+        let currentCardIndex = -1;
+        let currentCardData = null; // Stores {front, back, familiarity, rowIndex}
+
+        const sheetSelect = document.getElementById('sheetSelect');
+        const authButton = document.getElementById('authButton');
+        const flashcard = document.getElementById('flashcard');
+        const cardFront = document.getElementById('cardFront');
+        const cardBack = document.getElementById('cardBack');
+        const familiarityControls = document.getElementById('familiarityControls');
+        const flashcardArea = document.getElementById('flashcardArea');
+        const statusDiv = document.getElementById('status');
+        const loader = document.getElementById('loader');
+
+        /**
+         * Callback after Google API client is loaded.
+         */
+        function gapiLoaded() {
+            gapi.client.init({
+                apiKey: API_KEY, // API Key is optional if you only use OAuth, but good to have
+                discoveryDocs: DISCOVERY_DOCS,
+            }).then(() => {
+                gapiInited = true;
+                maybeEnableAuthButton();
+            });
+        }
+
+        /**
+         * Callback after Google Identity Services client is loaded.
+         */
+        function gisLoaded() {
+            tokenClient = google.accounts.oauth2.initTokenClient({
+                client_id: CLIENT_ID,
+                scope: SCOPES,
+                callback: (tokenResponse) => {
+                    if (tokenResponse.error) {
+                        statusDiv.textContent = 'Authorization failed: ' + tokenResponse.error;
+                        return;
+                    }
+                    gapi.client.setToken(tokenResponse);
+                    statusDiv.textContent = 'Authorized!';
+                    authButton.classList.add('hidden');
+                    populateSheetSelect();
+                    sheetSelect.classList.remove('hidden');
+                },
+            });
+            gisInited = true;
+            maybeEnableAuthButton();
+        }
+
+        /**
+         * Enables the authorization button if both gapi and gis are loaded.
+         */
+        function maybeEnableAuthButton() {
+            if (gapiInited && gisInited) {
+                authButton.onclick = () => tokenClient.requestAccessToken();
+                // Optionally auto-trigger auth if token not present and first visit
+                // if (!gapi.client.getToken()) {
+                //     tokenClient.requestAccessToken();
+                // }
+            }
+        }
+
+        /**
+         * Populates the sheet selection dropdown with pre-configured sheets.
+         */
+        function populateSheetSelect() {
+            SHEETS.forEach(sheet => {
+                const option = document.createElement('option');
+                option.value = sheet.id;
+                option.textContent = sheet.name;
+                sheetSelect.appendChild(option);
+            });
+            sheetSelect.addEventListener('change', loadSelectedSheet);
+        }
+
+        /**
+         * Loads data from the selected Google Sheet.
+         */
+        async function loadSelectedSheet() {
+            currentSheetId = sheetSelect.value;
+            if (!currentSheetId) {
+                flashcardArea.classList.add('hidden');
+                familiarityControls.classList.add('hidden');
+                statusDiv.textContent = 'Please select a deck.';
+                return;
+            }
+
+            statusDiv.textContent = 'Loading cards...';
+            loader.classList.remove('hidden');
+            flashcardArea.classList.add('hidden');
+            familiarityControls.classList.add('hidden');
+
+            try {
+                const response = await gapi.client.sheets.spreadsheets.values.get({
+                    spreadsheetId: currentSheetId,
+                    range: 'A:C', // Columns Front, Back, Familiarity
+                });
+                const values = response.result.values;
+
+                if (!values || values.length < 2) {
+                    statusDiv.textContent = 'No cards found in this sheet or missing headers (Front, Back, Familiarity).';
+                    allCards = [];
+                    return;
+                }
+
+                allCards = values.slice(1).map((row, index) => ({ // Skip header row
+                    front: row[0] || '',
+                    back: row[1] || '',
+                    familiarity: parseInt(row[2] || '0', 10), // Default to 0 if empty
+                    rowIndex: index + 2 // +2 because sheet rows are 1-indexed and we skipped header
+                }));
+
+                statusDiv.textContent = `Loaded ${allCards.length} cards.`;
+                loader.classList.add('hidden');
+                flashcardArea.classList.remove('hidden');
+                familiarityControls.classList.remove('hidden');
+                showNextCard();
+            } catch (err) {
+                statusDiv.textContent = 'Error loading sheet: ' + err.message;
+                console.error('Error loading sheet:', err);
+                loader.classList.add('hidden');
+            }
+        }
+
+        /**
+         * Selects the next card based on a weighted random approach.
+         * Lower familiarity scores (0-10) result in higher weight.
+         */
+        function showNextCard() {
+            if (allCards.length === 0) {
+                cardFront.textContent = 'No cards available.';
+                cardBack.textContent = '';
+                return;
+            }
+
+            // Reset card display
+            flashcard.classList.remove('flipped');
+            familiarityControls.classList.add('hidden');
+
+            // Calculate weights
+            const weights = allCards.map(card => {
+                // Familiarity is 0-10.
+                // Weight should be higher for lower familiarity.
+                // Example: familiarity 0 -> weight 10, familiarity 10 -> weight 0.1
+                // We'll use (10 - familiarity) for a simple linear increase.
+                // Add a small constant to ensure even familiar cards have a chance.
+                return (10 - card.familiarity) + 1; // +1 to ensure min weight is 1
+            });
+
+            // Calculate total weight
+            const totalWeight = weights.reduce((sum, w) => sum + w, 0);
+
+            // Pick a random number within the total weight
+            let randomWeight = Math.random() * totalWeight;
+
+            // Find the card corresponding to the random weight
+            for (let i = 0; i < allCards.length; i++) {
+                randomWeight -= weights[i];
+                if (randomWeight <= 0) {
+                    currentCardIndex = i;
+                    break;
+                }
+            }
+            
+            currentCardData = allCards[currentCardIndex];
+            cardFront.textContent = currentCardData.front;
+            cardBack.textContent = currentCardData.back;
+            statusDiv.textContent = `Familiarity: ${currentCardData.familiarity}/10`;
+            familiarityControls.classList.add('hidden'); // Hide until flipped
+        }
+
+        /**
+         * Flips the flashcard.
+         */
+        function flipCard() {
+            flashcard.classList.toggle('flipped');
+            if (flashcard.classList.contains('flipped')) {
+                familiarityControls.classList.remove('hidden');
+            } else {
+                familiarityControls.classList.add('hidden');
+            }
+        }
+
+        /**
+         * Updates the familiarity score for the current card in the Google Sheet.
+         * @param {string} difficulty - 'Hard', 'Medium', or 'Easy'.
+         */
+        async function updateFamiliarity(difficulty) {
+            if (!currentCardData) return;
+
+            let newFamiliarity = currentCardData.familiarity;
+
+            if (difficulty === 'Hard') {
+                newFamiliarity = Math.max(0, newFamiliarity - 2); // Decrease by 2, min 0
+            } else if (difficulty === 'Medium') {
+                newFamiliarity = Math.max(0, newFamiliarity - 1); // Decrease by 1, min 0
+            } else if (difficulty === 'Easy') {
+                newFamiliarity = Math.min(10, newFamiliarity + 1); // Increase by 1, max 10
+            }
+
+            // Update local card data
+            allCards[currentCardIndex].familiarity = newFamiliarity;
+            currentCardData.familiarity = newFamiliarity;
+
+            // Update Google Sheet
+            try {
+                await gapi.client.sheets.spreadsheets.values.update({
+                    spreadsheetId: currentSheetId,
+                    range: `C${currentCardData.rowIndex}`, // Column C (Familiarity), specific row
+                    valueInputOption: 'RAW',
+                    values: [[newFamiliarity]]
+                });
+                statusDiv.textContent = `Familiarity updated to ${newFamiliarity}/10.`;
+            } catch (err) {
+                statusDiv.textContent = 'Error updating familiarity: ' + err.message;
+                console.error('Error updating familiarity:', err);
+            }
+
+            // Show next card after updating
+            showNextCard();
+        }
+
+        // Event Listeners
+        flashcard.addEventListener('click', flipCard);
+        // Initially hide controls
+        familiarityControls.classList.add('hidden');
+        flashcardArea.classList.add('hidden');
+
+    </script>
+</body>
+</html>
